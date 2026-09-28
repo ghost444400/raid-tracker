@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>⚔️ 레이드 젠타임 트래커</title>
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --bg2: #12121a;
+    --bg3: #1a1a26;
+    --bg4: #22223a;
+    --border: rgba(150,130,255,0.15);
+    --border2: rgba(150,130,255,0.3);
+    --text: #f0eeff;
+    --text2: #a098c8;
+    --text3: #5a5478;
+    --accent: #8b74ff;
+    --accent2: #b8a8ff;
+    --accent-bg: rgba(139,116,255,0.15);
+    --green: #4ade9a;
+    --green-bg: rgba(74,222,154,0.12);
+    --red: #f87171;
+    --red-bg: rgba(248,113,113,0.12);
+    --yellow: #fbbf24;
+    --yellow-bg: rgba(251,191,36,0.12);
+    --radius: 12px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', -apple-system, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; font-size: 16px; }
+
+  .top-bar { background: var(--bg2); border-bottom: 2px solid var(--accent); padding: 18px 20px; display: flex; align-items: center; gap: 12px; }
+  .top-bar h1 { font-size: 22px; font-weight: 700; color: var(--accent2); }
+
+  .tabs { display: flex; gap: 4px; padding: 16px 16px 0; }
+  .tab { flex: 1; padding: 13px 8px; border-radius: var(--radius) var(--radius) 0 0; font-size: 15px; font-weight: 700; cursor: pointer; border: 1px solid transparent; background: var(--bg3); color: var(--text2); transition: all 0.15s; text-align: center; }
+  .tab.active { background: var(--bg2); border-color: var(--border2); border-bottom-color: var(--bg2); color: var(--accent2); }
+  .tab:hover:not(.active) { color: var(--text); background: var(--bg4); }
+
+  .panel { display: none; background: var(--bg2); border: 1px solid var(--border2); border-radius: 0 0 var(--radius) var(--radius); margin: 0 16px 20px; padding: 20px; }
+  .panel.active { display: block; }
+
+  /* 공통 필드 */
+  .field { margin-bottom: 14px; }
+  .field label { display: block; font-size: 14px; color: var(--text2); margin-bottom: 7px; font-weight: 600; }
+  .field select, .field input { width: 100%; background: var(--bg3); border: 2px solid var(--border2); border-radius: 10px; color: var(--text); font-size: 16px; padding: 13px 14px; outline: none; }
+  .field select:focus, .field input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(139,116,255,0.2); }
+
+  /* 버튼 */
+  .btn { width: 100%; padding: 15px; border: none; border-radius: 10px; font-size: 17px; font-weight: 700; cursor: pointer; margin-top: 6px; display: flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.15s; }
+  .btn:active { transform: scale(0.97); }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:hover { background: #7060e8; }
+  .btn-save { background: var(--green); color: #0a1a10; }
+  .btn-save:hover { background: #3bc882; }
+  .btn-cancel { background: var(--bg4); color: var(--text2); border: 2px solid var(--border2) !important; margin-top: 10px; }
+  .btn-cancel:hover { background: var(--bg3); color: var(--text); }
+
+  .card-btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
+  .card-btn { padding: 11px 8px; border-radius: 9px; font-size: 15px; font-weight: 700; cursor: pointer; border: 2px solid; display: flex; align-items: center; justify-content: center; gap: 6px; transition: all 0.15s; }
+  .card-btn:active { transform: scale(0.96); }
+  .btn-edit { background: var(--yellow-bg); color: var(--yellow); border-color: rgba(251,191,36,0.4); }
+  .btn-edit:hover { background: var(--yellow); color: #1a1000; }
+  .btn-del { background: var(--red-bg); color: var(--red); border-color: rgba(248,113,113,0.4); }
+  .btn-del:hover { background: var(--red); color: #fff; }
+
+  /* 리스폰 범위 */
+  .spawn-title { font-size: 14px; color: var(--text2); font-weight: 600; margin: 20px 0 10px; }
+  .spawn-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(145px,1fr)); gap: 8px; }
+  .spawn-item { background: var(--bg3); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; font-size: 13px; color: var(--text2); }
+  .spawn-item strong { color: var(--accent2); font-size: 14px; display: block; margin-top: 3px; }
+
+  /* 레이드 카드 */
+  .empty { text-align: center; padding: 50px 20px; color: var(--text3); font-size: 16px; line-height: 2.2; }
+  .raid-card { background: var(--bg3); border: 1px solid var(--border2); border-radius: 14px; padding: 18px; margin-bottom: 12px; }
+  .raid-card:last-child { margin-bottom: 0; }
+  .card-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .raid-name { font-size: 20px; font-weight: 700; color: var(--accent2); }
+  .badge { display: inline-block; padding: 6px 13px; border-radius: 20px; font-size: 14px; font-weight: 700; }
+  .badge-wait { background: var(--accent-bg); color: var(--accent2); border: 2px solid var(--border2); }
+  .badge-active { background: var(--green-bg); color: var(--green); border: 2px solid rgba(74,222,154,0.4); }
+  .badge-done { background: var(--red-bg); color: var(--red); border: 2px solid rgba(248,113,113,0.4); }
+  .card-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid var(--border); }
+  .card-row:last-of-type { border-bottom: none; }
+  .card-label { font-size: 14px; color: var(--text3); font-weight: 600; }
+  .card-val { font-size: 15px; font-weight: 700; }
+  .card-val.green { color: var(--green); }
+  .card-val.red { color: var(--red); }
+  .card-val.white { color: var(--text); }
+
+  /* 수정 모달 */
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 100; align-items: center; justify-content: center; padding: 20px; }
+  .modal-overlay.show { display: flex; }
+  .modal { background: var(--bg2); border: 2px solid var(--accent); border-radius: 16px; padding: 24px; width: 100%; max-width: 400px; }
+  .modal h2 { font-size: 20px; font-weight: 700; color: var(--accent2); margin-bottom: 18px; }
+
+  /* 달력 */
+  .cal-nav { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+  .cal-btn { background: var(--bg3); border: 2px solid var(--border2); color: var(--accent2); padding: 10px 22px; border-radius: 10px; cursor: pointer; font-size: 20px; font-weight: 700; }
+  .cal-btn:hover { background: var(--bg4); border-color: var(--accent); }
+  .cal-month { font-size: 20px; font-weight: 700; color: var(--accent2); }
+  .cal-grid { display: grid; grid-template-columns: repeat(7,1fr); gap: 4px; }
+  .cal-dow { text-align: center; font-size: 13px; color: var(--text3); padding: 6px 0; font-weight: 700; }
+  .cal-cell { min-height: 68px; background: var(--bg3); border: 1px solid var(--border); border-radius: 9px; padding: 5px; }
+  .cal-cell.other { opacity: 0.25; }
+  .cal-cell.today { border: 2px solid var(--accent); }
+  .cal-num { font-size: 13px; color: var(--text2); font-weight: 700; margin-bottom: 3px; }
+  .cal-cell.today .cal-num { color: var(--accent2); }
+  .ev { font-size: 10px; border-radius: 4px; padding: 2px 4px; margin-bottom: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; }
+  .ev-s { background: var(--green-bg); color: var(--green); }
+  .ev-m { background: var(--accent-bg); color: var(--accent2); }
+  .ev-e { background: var(--red-bg); color: var(--red); }
+  .legend { display: flex; gap: 16px; margin-top: 14px; flex-wrap: wrap; }
+  .legend span { font-size: 13px; color: var(--text2); display: flex; align-items: center; gap: 6px; font-weight: 600; }
+  .leg-dot { width: 12px; height: 12px; border-radius: 4px; }
+
+  .notice { background: var(--accent-bg); border: 1px solid var(--border2); border-radius: 10px; padding: 12px 16px; font-size: 14px; color: var(--text2); margin-bottom: 16px; line-height: 1.6; }
+</style>
+</head>
+<body>
+
+<div class="top-bar">
+  <span style="font-size:26px;">⚔️</span>
+  <h1>레이드 젠타임 트래커</h1>
+</div>
+
+<div class="tabs">
+  <button class="tab active" onclick="switchTab('input',this)">📥 입력</button>
+  <button class="tab" onclick="switchTab('list',this)">📋 목록</button>
+  <button class="tab" onclick="switchTab('calendar',this)">📅 달력</button>
+</div>
+
+<!-- 입력 -->
+<div id="panel-input" class="panel active">
+  <div class="field">
+    <label>레이드 선택</label>
+    <select id="sel-raid">
+      <option value="안타라스">⚔️ 안타라스 (Antharas)</option>
+      <option value="바이움">🔥 바이움 (Baium)</option>
+      <option value="바이움사제">🔥 바이움사제</option>
+      <option value="여왕개미">🐜 여왕개미 (Queen Ant)</option>
+      <option value="여왕개미사제">🐜 여왕개미사제</option>
+      <option value="코어">💀 코어 (Core)</option>
+      <option value="코어사제">💀 코어사제</option>
+      <option value="오르펜">🌊 오르펜 (Orfen)</option>
+      <option value="오르펜사제">🌊 오르펜사제</option>
+      <option value="자켄">💣 자켄 (Zaken)</option>
+    </select>
+  </div>
+  <div class="field">
+    <label>처치 날짜</label>
+    <input type="date" id="inp-date">
+  </div>
+  <div class="field">
+    <label>처치 시간</label>
+    <input type="time" id="inp-time">
+  </div>
+  <button class="btn btn-primary" onclick="addKill()">＋ 젠타임 추가</button>
+
+  <div class="spawn-title">⏱ 리스폰 범위</div>
+  <div class="spawn-grid">
+    <div class="spawn-item">안타라스<strong>228 ~ 252h</strong></div>
+    <div class="spawn-item">바이움<strong>120 ~ 128h</strong></div>
+    <div class="spawn-item">바이움사제<strong>30 ~ 34h</strong></div>
+    <div class="spawn-item">여왕개미<strong>32 ~ 48h</strong></div>
+    <div class="spawn-item">여왕개미사제<strong>30 ~ 34h</strong></div>
+    <div class="spawn-item">코어<strong>52 ~ 76h</strong></div>
+    <div class="spawn-item">코어사제<strong>30 ~ 34h</strong></div>
+    <div class="spawn-item">오르펜<strong>52 ~ 76h</strong></div>
+    <div class="spawn-item">오르펜사제<strong>30 ~ 34h</strong></div>
+    <div class="spawn-item">자켄<strong>46 ~ 54h</strong></div>
+  </div>
+</div>
+
+<!-- 목록 -->
+<div id="panel-list" class="panel">
+  <div class="notice">💾 데이터는 브라우저에 저장됩니다.<br>✏️ 수정 / 🗑 삭제 버튼으로 관리하세요!</div>
+  <div id="list-body"></div>
+</div>
+
+<!-- 달력 -->
+<div id="panel-calendar" class="panel">
+  <div class="cal-nav">
+    <button class="cal-btn" onclick="changeMonth(-1)">‹</button>
+    <span class="cal-month" id="cal-label"></span>
+    <button class="cal-btn" onclick="changeMonth(1)">›</button>
+  </div>
+  <div class="cal-grid" id="cal-grid"></div>
+  <div class="legend">
+    <span><span class="leg-dot" style="background:var(--green-bg);border:1px solid var(--green);"></span>젠 시작</span>
+    <span><span class="leg-dot" style="background:var(--accent-bg);border:1px solid var(--accent);"></span>젠 진행중</span>
+    <span><span class="leg-dot" style="background:var(--red-bg);border:1px solid var(--red);"></span>젠 마감</span>
+  </div>
+</div>
+
+<!-- 수정 모달 -->
+<div class="modal-overlay" id="modal">
+  <div class="modal">
+    <h2>✏️ 처치 시간 수정</h2>
+    <input type="hidden" id="edit-id">
+    <div class="field">
+      <label>레이드</label>
+      <select id="edit-raid">
+        <option value="안타라스">⚔️ 안타라스</option>
+        <option value="바이움">🔥 바이움</option>
+        <option value="바이움사제">🔥 바이움사제</option>
+        <option value="여왕개미">🐜 여왕개미</option>
+        <option value="여왕개미사제">🐜 여왕개미사제</option>
+        <option value="코어">💀 코어</option>
+        <option value="코어사제">💀 코어사제</option>
+        <option value="오르펜">🌊 오르펜</option>
+        <option value="오르펜사제">🌊 오르펜사제</option>
+        <option value="자켄">💣 자켄</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>처치 날짜</label>
+      <input type="date" id="edit-date">
+    </div>
+    <div class="field">
+      <label>처치 시간</label>
+      <input type="time" id="edit-time">
+    </div>
+    <button class="btn btn-save" onclick="saveEdit()">💾 저장</button>
+    <button class="btn btn-cancel" onclick="closeModal()">✕ 취소</button>
+  </div>
+</div>
+
+<script>
+const RAIDS={
+  '안타라스':[228,252],'바이움':[120,128],'바이움사제':[30,34],
+  '여왕개미':[32,48],'여왕개미사제':[30,34],'코어':[52,76],
+  '코어사제':[30,34],'오르펜':[52,76],'오르펜사제':[30,34],'자켄':[46,54]
+};
+let kills=[];
+try{kills=JSON.parse(localStorage.getItem('raid_kills')||'[]');}catch(e){}
+let calY,calM;
+
+function save(){try{localStorage.setItem('raid_kills',JSON.stringify(kills));}catch(e){}}
+function pad(n){return String(n).padStart(2,'0');}
+function fmt(d){return `${d.getMonth()+1}/${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;}
+function toDateStr(d){return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;}
+function toTimeStr(d){return `${pad(d.getHours())}:${pad(d.getMinutes())}`;}
+
+function addKill(){
+  const raid=document.getElementById('sel-raid').value;
+  const date=document.getElementById('inp-date').value;
+  const time=document.getElementById('inp-time').value;
+  if(!date||!time){alert('날짜와 시간을 입력해주세요.');return;}
+  const dt=new Date(date+'T'+time);
+  const [mn,mx]=RAIDS[raid];
+  const s=new Date(dt.getTime()+mn*3600000);
+  const e=new Date(dt.getTime()+mx*3600000);
+  kills.push({id:Date.now(),raid,kill:dt.toISOString(),start:s.toISOString(),end:e.toISOString()});
+  kills.sort((a,b)=>new Date(a.start)-new Date(b.start));
+  save();renderList();renderCal();
+  alert(`✅ ${raid} 추가!\n젠 시작: ${fmt(s)}\n젠 마감: ${fmt(e)}`);
+}
+
+function openEdit(id){
+  const k=kills.find(k=>k.id===id);if(!k)return;
+  const dt=new Date(k.kill);
+  document.getElementById('edit-id').value=id;
+  document.getElementById('edit-raid').value=k.raid;
+  document.getElementById('edit-date').value=toDateStr(dt);
+  document.getElementById('edit-time').value=toTimeStr(dt);
+  document.getElementById('modal').classList.add('show');
+}
+
+function closeModal(){document.getElementById('modal').classList.remove('show');}
+
+function saveEdit(){
+  const id=Number(document.getElementById('edit-id').value);
+  const raid=document.getElementById('edit-raid').value;
+  const date=document.getElementById('edit-date').value;
+  const time=document.getElementById('edit-time').value;
+  if(!date||!time){alert('날짜와 시간을 입력해주세요.');return;}
+  const dt=new Date(date+'T'+time);
+  const [mn,mx]=RAIDS[raid];
+  const s=new Date(dt.getTime()+mn*3600000);
+  const e=new Date(dt.getTime()+mx*3600000);
+  const idx=kills.findIndex(k=>k.id===id);
+  if(idx>-1)kills[idx]={id,raid,kill:dt.toISOString(),start:s.toISOString(),end:e.toISOString()};
+  kills.sort((a,b)=>new Date(a.start)-new Date(b.start));
+  save();renderList();renderCal();closeModal();
+  alert(`✅ ${raid} 수정 완료!\n젠 시작: ${fmt(s)}\n젠 마감: ${fmt(e)}`);
+}
+
+function del(id){
+  const k=kills.find(k=>k.id===id);
+  if(!confirm(`🗑 ${k.raid} 삭제할까요?`))return;
+  kills=kills.filter(k=>k.id!==id);save();renderList();renderCal();
+}
+
+function badge(k){
+  const now=Date.now(),s=new Date(k.start).getTime(),e=new Date(k.end).getTime();
+  if(now<s)return '<span class="badge badge-wait">⏳ 대기중</span>';
+  if(now<=e)return '<span class="badge badge-active">🔴 젠 중!</span>';
+  return '<span class="badge badge-done">✅ 마감</span>';
+}
+
+function renderList(){
+  const el=document.getElementById('list-body');
+  if(!kills.length){el.innerHTML='<div class="empty">📭 처치 기록이 없습니다.<br>입력 탭에서 추가해주세요!</div>';return;}
+  el.innerHTML=kills.map(k=>`
+    <div class="raid-card">
+      <div class="card-top">
+        <span class="raid-name">${k.raid}</span>
+        ${badge(k)}
+      </div>
+      <div class="card-row"><span class="card-label">⚔️ 처치</span><span class="card-val white">${fmt(new Date(k.kill))}</span></div>
+      <div class="card-row"><span class="card-label">🟢 젠 시작</span><span class="card-val green">${fmt(new Date(k.start))}</span></div>
+      <div class="card-row"><span class="card-label">🔴 젠 마감</span><span class="card-val red">${fmt(new Date(k.end))}</span></div>
+      <div class="card-btn-row">
+        <button class="card-btn btn-edit" onclick="openEdit(${k.id})">✏️ 수정</button>
+        <button class="card-btn btn-del" onclick="del(${k.id})">🗑 삭제</button>
+      </div>
+    </div>`).join('');
+}
+
+function renderCal(){
+  document.getElementById('cal-label').textContent=`${calY}년 ${calM+1}월`;
+  const dows=['일','월','화','수','목','금','토'];
+  let html=dows.map(d=>`<div class="cal-dow">${d}</div>`).join('');
+  const first=new Date(calY,calM,1),last=new Date(calY,calM+1,0),today=new Date();
+  for(let i=0;i<first.getDay();i++){
+    const d=new Date(calY,calM,-first.getDay()+1+i);
+    html+=`<div class="cal-cell other"><div class="cal-num">${d.getDate()}</div></div>`;
+  }
+  for(let d=1;d<=last.getDate();d++){
+    const isToday=(d===today.getDate()&&calM===today.getMonth()&&calY===today.getFullYear());
+    const thisDay=new Date(calY,calM,d);
+    let evs='';
+    kills.forEach(k=>{
+      const s=new Date(k.start),e=new Date(k.end);
+      const sd=new Date(s.getFullYear(),s.getMonth(),s.getDate());
+      const ed=new Date(e.getFullYear(),e.getMonth(),e.getDate());
+      if(+thisDay===+sd)evs+=`<div class="ev ev-s">${k.raid}</div>`;
+      else if(thisDay>sd&&thisDay<ed)evs+=`<div class="ev ev-m">${k.raid}</div>`;
+      else if(+thisDay===+ed)evs+=`<div class="ev ev-e">${k.raid}</div>`;
+    });
+    html+=`<div class="cal-cell${isToday?' today':''}"><div class="cal-num">${d}</div>${evs}</div>`;
+  }
+  document.getElementById('cal-grid').innerHTML=html;
+}
+
+function changeMonth(d){calM+=d;if(calM<0){calM=11;calY--;}if(calM>11){calM=0;calY++;}renderCal();}
+
+function switchTab(name,btn){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('panel-'+name).classList.add('active');
+  if(name==='list')renderList();
+  if(name==='calendar')renderCal();
+}
+
+const now=new Date();
+calY=now.getFullYear();calM=now.getMonth();
+document.getElementById('inp-date').value=`${calY}-${pad(calM+1)}-${pad(now.getDate())}`;
+document.getElementById('inp-time').value=`${pad(now.getHours())}:${pad(now.getMinutes())}`;
+renderCal();
+</script>
+</body>
+</html>
